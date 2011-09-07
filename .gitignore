@@ -1,0 +1,5 @@
+# GAMS log (not results)
+*.glg
+
+# GAMS output (results)
+ad9510_math.lst
