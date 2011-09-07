@@ -22,9 +22,10 @@ $title AD9510 parameter calculation
 parameters
 	fr Reference frequency /170/
 	ft Target frequency /200/
+*-      VCO freqs for Crystek CVCO55CL-0600-0880
 	vco_max VCO maximum frequency /880/
 	vco_min VCO minimum frequency /600/
-
+	
 	
 variables
 	fn  VCXO frequency
