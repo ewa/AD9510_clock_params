@@ -7,7 +7,7 @@
 *  solver, and may be fine with others.  With a single target frequency
 *  output (ft1, fout1, dout1), the model fits under the 10-variable demo
 *  limit for BARON.  Otherwise, consider using a different solver or the
-*  NEOS service.
+*  NEOS service. http://www.neos-server.org/neos/solvers/go:BARON/GAMS.html
 *
 *  This software is distributed under the terms of the GNU General Public
 *  License (GPL), version 3 or later.
@@ -83,14 +83,22 @@ variables
 	p_div_fd Actual dividing value of prescaler. 
 	a A component of N divider (see AD9510 data sheet pp 29-30)
 	b B component of N divider (see AD9510 data sheet pp 29-30)
+	b_byass Configure bypass of b (effectively b=1) (p 30)
+	b_eff Effective value of B
+
 	
 
-Positive variable p_dm, fn, dn, p_div_dm, p_div_fd, fpfd, fout1, fout2;
+Positive variable p_dm, fn, dn, p_div_dm, p_div_fd, fpfd, fout1, fout2, b_eff;
 Integer variable dr, dout1, dout2;
-Integer variable dm_mode, p_fd, p_exp, a, b;
+Integer variable dm_mode, p_fd, p_exp, a, b, b_bypass;
 
+* Bool
 dm_mode.lo = 0;
 dm_mode.up = 1;
+
+* Bool
+b_bypass.lo = 0;
+b_bypass.up = 1;
 
 * From AD9510 Data sheet, page 29
 dr.lo = 1.0;
@@ -104,6 +112,10 @@ a.up = (2**6)-1;
 * With no B bypass: (Bypass adds 1 as another option (but 2 is still out))
 b.lo = 3;
 b.up = 8191;
+
+* Including bypass
+b_eff.lo = 1;
+b_eff.up = 8191;
 
 * From AD9510 Data sheet Table 14, page 30
 * Fixed divisor mode only!
@@ -143,6 +155,7 @@ equations
 	def_fout2 fout1 from VCO
 	vco_lower VCO frequency > minimum
 	vco_upper VCO frequency < maximum
+	def_b_eff Effective value of B (depends on bypass)
 	def_p_dm  Definition of P in dual-modulus prescale mode
 	def_p_div_fd Definition of p_div (the actual divison ratio) in FD mode
 	def_p_div_dm Definition of p_div (the actual divison ratio) in DM mode
@@ -163,8 +176,14 @@ def_p_div_dm.. p_div_dm =e= p_dm/(p_dm+1) ;
 * options.  Since dm_mode is a 0-1 variable, this effectively means
 * "if dm_mode A else B"
 def_dn.. dn =e=
-	 ((dm_mode) *((p_div_dm*b)+ a)) +
-	 ((1-dm_mode) * (p_div_fd*b)) ;
+	 ((dm_mode) *((p_div_dm*b_eff)+ a)) +
+	 ((1-dm_mode) * (p_div_fd*b_eff)) ;
+
+*Same trick
+def_b_eff.. b_eff =e=
+	    (b_bypass * 1) +
+	    ((1-b_bypass) * b) ;
+	    
 error..   sse =e= (fout1-ft1)*(fout1-ft1) + (fout2-ft2)*(fout2-ft2) ;
 
 Model ad9510 /all/ ;
@@ -173,4 +192,5 @@ solve ad9510 using minlp minimizing sse ;
 
 display fr, ft1, fout1.l, ft2, fout2.l, fn.l, fpfd.l;
 display dr.l, dn.l, dout1.l, dout2.l ;
-display dm_mode.l, p_fd.l, p_div_fd.l, p_dm.l, p_div_dm.l, p_fd.l, a.l, b.l;
+display dm_mode.l, p_fd.l, p_div_fd.l, p_dm.l, p_div_dm.l, p_fd.l;
+display a.l, b_bypass.l, b.l, b_eff.l;
