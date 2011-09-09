@@ -75,16 +75,22 @@ variables
 	fout2 divided version of fn
 	dout2 output divisor 2
 	sse Sum of squared error
-	p P component of N divider (see AD9510 data sheet pp 29-30)
+	dm_mode Use DM (Dual Modulus mode) 0=no (FD mode)  1=yes.
+	p_dm P component of N divider (DM mode) (see AD9510 data sheet pp 29-30)
+	p_fd P component of N divider (FD mode) (see AD9510 data sheet pp 29-30)
 	p_exp Exponent determining P in DM mode
-	p_div Actual dividing value of prescaler. 
+	p_div_dm Actual dividing value of prescaler.
+	p_div_fd Actual dividing value of prescaler. 
 	a A component of N divider (see AD9510 data sheet pp 29-30)
 	b B component of N divider (see AD9510 data sheet pp 29-30)
 	
 
-Positive variable p, fn, dn, p_div, fpfd, fout1, fout2;
+Positive variable p_dm, fn, dn, p_div_dm, p_div_fd, fpfd, fout1, fout2;
 Integer variable dr, dout1, dout2;
-Integer variable p_exp, a, b;
+Integer variable dm_mode, p_fd, p_exp, a, b;
+
+dm_mode.lo = 0;
+dm_mode.up = 1;
 
 * From AD9510 Data sheet, page 29
 dr.lo = 1.0;
@@ -101,8 +107,8 @@ b.up = 8191;
 
 * From AD9510 Data sheet Table 14, page 30
 * Fixed divisor mode only!
-* p.lo = 1;
-* p.up = 3;
+p_fd.lo = 1;
+p_fd.up = 3;
 
 * From AD9510 Data sheet Table 14, page 30
 * Dual Modulus mode
@@ -137,10 +143,10 @@ equations
 	def_fout2 fout1 from VCO
 	vco_lower VCO frequency > minimum
 	vco_upper VCO frequency < maximum
-*	def_dn_fd Definition of N divider (fixed-divide prescale)
 	def_p_dm  Definition of P in dual-modulus prescale mode
+	def_p_div_fd Definition of p_div (the actual divison ratio) in FD mode
 	def_p_div_dm Definition of p_div (the actual divison ratio) in DM mode
-	def_dn_dm Definition of N divider (dual-modulus prescale)
+	def_dn Definition of N divider (fixed-divide OR dual-modulus mode)
 	error SS difference between ft1 and fn ;
 
 ref_in..  fpfd =e= fr/dr ;
@@ -149,11 +155,16 @@ def_fout1.. fout1 =e= fn/dout1;
 def_fout2.. fout2 =e= fn/dout2;
 vco_lower.. fn =g= vco_min;
 vco_upper.. fn =l= vco_max;
-* Fixed divide mode. 
-* def_dn_fd..  dn =e= p_div*b;
-def_p_dm.. p =e= 2**p_exp;
-def_p_div_dm.. p_div =e= p/(p+1) ;
-def_dn_dm..  dn =e= (p_div*b)+ a;
+def_p_div_fd.. p_div_fd =e= p_fd;
+def_p_dm.. p_dm =e= 2**p_exp;
+def_p_div_dm.. p_div_dm =e= p_dm/(p_dm+1) ;
+
+* Note: This says dn must be a convex combination of the FD and DM
+* options.  Since dm_mode is a 0-1 variable, this effectively means
+* "if dm_mode A else B"
+def_dn.. dn =e=
+	 ((dm_mode) *((p_div_dm*b)+ a)) +
+	 ((1-dm_mode) * (p_div_fd*b)) ;
 error..   sse =e= (fout1-ft1)*(fout1-ft1) + (fout2-ft2)*(fout2-ft2) ;
 
 Model ad9510 /all/ ;
@@ -162,4 +173,4 @@ solve ad9510 using minlp minimizing sse ;
 
 display fr, ft1, fout1.l, ft2, fout2.l, fn.l, fpfd.l;
 display dr.l, dn.l, dout1.l, dout2.l ;
-display p_div.l, p.l, p_exp.l, a.l, b.l;
+display dm_mode.l, p_fd.l, p_div_fd.l, p_dm.l, p_div_dm.l, p_fd.l, a.l, b.l;
