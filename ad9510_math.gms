@@ -76,17 +76,24 @@ variables
 	dout2 output divisor 2
 	sse Sum of squared error
 	p P component of N divider (see AD9510 data sheet pp 29-30)
+	p_exp Exponent determining P in DM mode
+	p_div Actual dividing value of prescaler. 
 	a A component of N divider (see AD9510 data sheet pp 29-30)
 	b B component of N divider (see AD9510 data sheet pp 29-30)
 	
 
-Positive variable fn, dn, fpfd, fout1, fout2;
+Positive variable p, fn, dn, p_div, fpfd, fout1, fout2;
 Integer variable dr, dout1, dout2;
-Integer variable p, a, b;
+Integer variable p_exp, a, b;
 
 * From AD9510 Data sheet, page 29
 dr.lo = 1.0;
 dr.up = 16383;
+
+* From AD9510 Data sheet, pages 29 and 30
+a.lo = 0;
+a.up = (2**6)-1;
+
 
 * With no B bypass: (Bypass adds 1 as another option (but 2 is still out))
 b.lo = 3;
@@ -94,12 +101,18 @@ b.up = 8191;
 
 * From AD9510 Data sheet Table 14, page 30
 * Fixed divisor mode only!
-p.lo = 1;
-p.up = 3;
+* p.lo = 1;
+* p.up = 3;
 
-* Guessing: A is 6 bits
+* From AD9510 Data sheet Table 14, page 30
+* Dual Modulus mode
+* P = {2,4,8,16,32} = 2^p_exp: p_exp = {1,2,3,4,5}
+p_exp.lo = 1;
+p_exp.up = 5;
+
+* Guessing: A is 6 bits (0 -- 2^6-1)
 a.lo = 0;
-a.up = 2**6-1;
+a.up = 63;
 
 * From AD9510 Data sheet, Figure 33
 dout1.lo = 1;
@@ -124,7 +137,10 @@ equations
 	def_fout2 fout1 from VCO
 	vco_lower VCO frequency > minimum
 	vco_upper VCO frequency < maximum
-	def_dn Definition of N divider
+*	def_dn_fd Definition of N divider (fixed-divide prescale)
+	def_p_dm  Definition of P in dual-modulus prescale mode
+	def_p_div_dm Definition of p_div (the actual divison ratio) in DM mode
+	def_dn_dm Definition of N divider (dual-modulus prescale)
 	error SS difference between ft1 and fn ;
 
 ref_in..  fpfd =e= fr/dr ;
@@ -134,7 +150,10 @@ def_fout2.. fout2 =e= fn/dout2;
 vco_lower.. fn =g= vco_min;
 vco_upper.. fn =l= vco_max;
 * Fixed divide mode. 
-def_dn..  dn =e= p*b;
+* def_dn_fd..  dn =e= p_div*b;
+def_p_dm.. p =e= 2**p_exp;
+def_p_div_dm.. p_div =e= p/(p+1) ;
+def_dn_dm..  dn =e= (p_div*b)+ a;
 error..   sse =e= (fout1-ft1)*(fout1-ft1) + (fout2-ft2)*(fout2-ft2) ;
 
 Model ad9510 /all/ ;
@@ -143,4 +162,4 @@ solve ad9510 using minlp minimizing sse ;
 
 display fr, ft1, fout1.l, ft2, fout2.l, fn.l, fpfd.l;
 display dr.l, dn.l, dout1.l, dout2.l ;
-display p.l, a.l, b.l;
+display p_div.l, p.l, p_exp.l, a.l, b.l;
